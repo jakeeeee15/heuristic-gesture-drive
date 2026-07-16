@@ -37,6 +37,7 @@ HAND_CONNECTIONS = [
 
 
 def is_hand_flat(landmarks):
+    """Returns True if 3 or more fingers are extended upwards."""
     tips, pips = [8, 12, 16, 20], [6, 10, 14, 18]
     extended_fingers = sum(1 for tip, pip in zip(tips, pips) if landmarks[tip].y < landmarks[pip].y)
     return extended_fingers >= 3
@@ -44,7 +45,7 @@ def is_hand_flat(landmarks):
 
 # --- 2. CAMERA SETUP ---
 cap = cv2.VideoCapture(0)
-TILT_THRESHOLD = 15
+TILT_THRESHOLD = 8
 
 cv2.namedWindow("Steering Cam")
 cv2.setWindowProperty("Steering Cam", cv2.WND_PROP_TOPMOST, 1)
@@ -84,7 +85,7 @@ while cap.isOpened():
         cv2.putText(img, "BRAKING" if current_gas_key == 's' else "ACCELERATING", (50, 100), cv2.FONT_HERSHEY_SIMPLEX,
                     1, (0, 0, 255) if current_gas_key == 's' else (0, 255, 0), 3)
 
-        # --- PROPORTIONAL TAPPING STEERING ---
+        # --- PROPORTIONAL TAPPING STEERING (SHARPER TUNING) ---
         x1, y1 = int(hand1_lms[9].x * w), int(hand1_lms[9].y * h)
         x2, y2 = int(hand2_lms[9].x * w), int(hand2_lms[9].y * h)
 
@@ -97,13 +98,13 @@ while cap.isOpened():
         if abs_angle > TILT_THRESHOLD:
             target_steer_key = 'd' if angle > 0 else 'a'
 
-            MAX_ANGLE = 70.0
+            # Lowered max angle: hits fastest tap rate at 50 degrees instead of 70
+            MAX_ANGLE = 50.0
             capped_angle = min(abs_angle, MAX_ANGLE)
 
-            # 0% means you are at exactly 15 degrees. 100% means you are at 70 degrees.
             turn_percent = (capped_angle - TILT_THRESHOLD) / (MAX_ANGLE - TILT_THRESHOLD)
 
-            # Map that percentage to an interval between 0.4s and 0.1s
+            # Tap interval scales between 0.4s and 0.1s
             current_tap_interval = 0.4 - (turn_percent * 0.3)
         else:
             target_steer_key = None
@@ -118,7 +119,8 @@ while cap.isOpened():
             if current_time - last_tap_time >= current_tap_interval:
                 keyboard.press(target_steer_key)
                 active_steer_key = target_steer_key
-                steer_release_time = current_time + 0.07
+                # Increased hold time: holds the key twice as long (150ms) per tap to bite harder
+                steer_release_time = current_time + 0.15
                 last_tap_time = current_time
 
             display_steer_text = f"TURN {target_steer_key.upper()} (Angle: {int(abs_angle)})"
